@@ -132,15 +132,17 @@ public class Distributor {
 						// incrémente nombre rêquete
 						k++;
 
-						// Send a message
-						sqs.sendMessage(new SendMessageRequest(myQRequestUrl,
-								val + " " + numRequete));
-
 						// create queue response
 						CreateQueueRequest createQueueRequest = new CreateQueueRequest(
 								"arif-QResponse-" + numRequete);
 						String myQResponseUrl = sqs.createQueue(
 								createQueueRequest).getQueueUrl();
+						
+						// Send a message
+						sqs.sendMessage(new SendMessageRequest(myQRequestUrl,
+								val + " " + numRequete));
+
+						
 						boolean fini = true;
 						while (fini) {
 							List<Message> msgs = sqs.receiveMessage(
