@@ -116,13 +116,12 @@ public class Distributor {
 		public void run() {
 			InputStream sis;
 			String val = "";
-			System.out.println(k);
 			try {
 				sis = socket.getInputStream();
 				BufferedReader br = new BufferedReader(new InputStreamReader(
 						sis));
 				String request = br.readLine();
-				System.out.println(request);
+				System.out.println("La requête est : "+request);
 				if (request != null) {
 					String[] requestParam = request.split(" ");
 					String[] requestParam1 = requestParam[1].split("/");
@@ -153,11 +152,11 @@ public class Distributor {
 								Message message = msgs.get(0);
 								String data = message.getBody();
 								System.out
-										.println("Le résultat de fibonnaci de  is "
+										.println("Le résultat de fibonnaci de"+val+" est "
 												+ data);
 								PrintWriter out = new PrintWriter(
 										socket.getOutputStream(), true);
-								out.println("Le résultat de fibonnaci de "+val+" "
+								out.println("Le résultat de fibonnaci de "+val+" est "
 										+ data);
 								sqs.deleteQueue(myQResponseUrl);
 								fini = false;
