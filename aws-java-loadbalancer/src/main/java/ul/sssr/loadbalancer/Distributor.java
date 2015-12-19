@@ -116,6 +116,7 @@ public class Distributor {
 		public void run() {
 			InputStream sis;
 			String val = "";
+			System.out.println(k);
 			try {
 				sis = socket.getInputStream();
 				BufferedReader br = new BufferedReader(new InputStreamReader(
@@ -164,6 +165,7 @@ public class Distributor {
 						}
 					}
 				}
+				k++;
 				socket.close();
 			} catch (IOException e1) {
 				// TODO Auto-generated catch block
