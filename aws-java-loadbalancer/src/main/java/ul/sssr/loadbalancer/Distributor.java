@@ -84,7 +84,8 @@ public class Distributor {
 		boolean listening = true;
 		try {
 			socket = new ServerSocket(portNumber);
-			int max = 2;
+			//Ajout d'un worker tout les 25 messages 
+			int max = 50;
 			while (listening) {
 				new ServerThread(socket.accept()).start();
 				GetQueueAttributesRequest request = new GetQueueAttributesRequest(myQRequestUrl)
@@ -185,7 +186,7 @@ public class Distributor {
 	public static void stopWorker(int messages){
 		AmazonEC2 ec2 = new AmazonEC2AsyncClient(credentials);
 		ec2.setEndpoint("ec2.eu-central-1.amazonaws.com");
-		int nbWorkers = messages%1;
+		int nbWorkers = messages/25;
 		if (nbWorkers < fifo.size() ){	    
 		    List<String> ids = new ArrayList<String>();
 		    ids.add(fifo.peek());
