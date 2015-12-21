@@ -1,17 +1,32 @@
 package ul.sssr.loadbalancer;
 
 import java.net.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Queue;
 import java.io.*;
+
+import org.apache.commons.codec.binary.Base64;
+
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
+import com.amazonaws.services.ec2.AmazonEC2;
+import com.amazonaws.services.ec2.AmazonEC2AsyncClient;
+import com.amazonaws.services.ec2.model.CreateTagsRequest;
+import com.amazonaws.services.ec2.model.RunInstancesRequest;
+import com.amazonaws.services.ec2.model.Tag;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.amazonaws.services.sqs.model.CreateQueueRequest;
+import com.amazonaws.services.sqs.model.GetQueueAttributesRequest;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.PurgeQueueRequest;
 import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
@@ -20,9 +35,11 @@ import com.amazonaws.services.sqs.model.SendMessageRequest;
 public class Distributor {
 
 	static int portNumber = 8080;
+	static AWSCredentials credentials;
 	static int k;
 	static String myQRequestUrl;
 	static AmazonSQS sqs;
+	static Queue<AmazonEC2> fifo = new LinkedList<AmazonEC2>();
 
 	public static void main(String[] args) throws IOException {
 
@@ -31,8 +48,6 @@ public class Distributor {
 		 * profile by reading from the credentials file located at
 		 * (~/.aws/credentials).
 		 */
-
-		AWSCredentials credentials = null;
 		try {
 			credentials = new ProfileCredentialsProvider().getCredentials();
 		} catch (Exception e) {
@@ -96,8 +111,21 @@ public class Distributor {
 
 		try {
 			socket = new ServerSocket(portNumber);
+			
+			int max = 1;
 			while (listening) {
 				new ServerThread(socket.accept()).start();
+				GetQueueAttributesRequest request = new GetQueueAttributesRequest(myQRequestUrl).withAttributeNames("ApproximateNumberOfMessages");
+				Map<String, String> attrs = sqs.getQueueAttributes(request).getAttributes();
+				
+				// get the approximate number of messages in the queue
+	            int messages = Integer.parseInt(attrs.get("ApproximateNumberOfMessages"));
+	            // compare with max, the user's choice for maximum number of messages
+	            if (messages > max) {
+	                // if number of messages exceeds maximum, 
+	            	fifo.add(createWorker());
+	                System.out.println("Creation new worker succeed !");
+	            }
 			}
 			socket.close();
 		} catch (IOException e) {
@@ -127,6 +155,10 @@ public class Distributor {
 					String[] requestParam1 = requestParam[1].split("/");
 					if (isInt(requestParam1[1])) {
 						val = requestParam1[1];
+						if(Integer.parseInt(val) > 40){
+							fifo.add(createWorker());
+							  System.out.println("Creation new worker succeed > 40 !");
+						}
 						int numRequete = k;
 
 						// incrémente nombre rêquete
@@ -186,4 +218,51 @@ public class Distributor {
 		}
 		return valeur;
 	}
+	
+	public static AmazonEC2 createWorker(){
+		AmazonEC2 ec2 = new AmazonEC2AsyncClient(credentials);
+		ec2.setEndpoint("ec2.eu-central-1.amazonaws.com");
+
+		// CREATE EC2 INSTANCES
+		RunInstancesRequest runInstancesRequest = new RunInstancesRequest()
+		    .withInstanceType("t2.micro")
+		    .withImageId("ami-e5574889")
+		    .withMinCount(1)
+		    .withMaxCount(1)
+		    .withSecurityGroupIds("bachir_SG_frankfurt")
+		    .withKeyName("bachir-key-pair")
+		    .withUserData(getUserDataScript());
+		CreateTagsRequest createTagsRequest = new CreateTagsRequest();
+		createTagsRequest.withResources((ec2.runInstances(runInstancesRequest).getReservation().getInstances().get(0).getInstanceId()))
+			.withTags(new Tag("Name", "Worker"));
+		ec2.createTags(createTagsRequest);
+		return ec2;		
+	}
+	
+	public static void stopWorker(){
+		
+	}
+	
+	private static String getUserDataScript(){
+        ArrayList<String> lines = new ArrayList<String>();
+        lines.add("#! /bin/bash");
+        lines.add("cd /home/ec2-user");
+        lines.add("./java-server_launch");
+        String str = new String(Base64.encodeBase64(join(lines, "\n").getBytes()));
+        return str;
+    }
+	 
+	private static String join(Collection<String> s, String delimiter) {
+	        StringBuilder builder = new StringBuilder();
+	        Iterator<String> iter = s.iterator();
+	        while (iter.hasNext()) {
+	            builder.append(iter.next());
+	            if (!iter.hasNext()) {
+	                break;
+	            }
+	            builder.append(delimiter);
+	        }
+	        return builder.toString();
+	    }
+	
 }
